@@ -1,0 +1,16 @@
+{
+  "documents": [
+    {"name": "unicode", "document": "## Качество\nmasterpiece, best quality\n\n## Основное\nлес, утренний свет", "expected": [{"title": "Качество", "text": "masterpiece, best quality", "shared": true}, {"title": "Основное", "text": "лес, утренний свет", "shared": true}]},
+    {"name": "empty", "document": "  \n\n", "expected": []},
+    {"name": "untitled", "document": "plain text, no headers", "expected": [{"title": "", "text": "plain text, no headers", "shared": true}]},
+    {"name": "empty blocks", "document": "## A\n\n##\n\n## C\nend", "expected": [{"title": "A", "text": "", "shared": true}, {"title": "", "text": "", "shared": true}, {"title": "C", "text": "end", "shared": true}]},
+    {"name": "escaped headings", "document": "## A\n\\## literal\n\\\\path\n\nparagraph\n## B\nlast", "expected": [{"title": "A", "text": "## literal\n\\path\n\nparagraph", "shared": true}, {"title": "B", "text": "last", "shared": true}]},
+    {"name": "preamble and CRLF", "document": "intro\r\n\r\n##\tName\r\nbody\r\n", "expected": [{"title": "", "text": "intro", "shared": true}, {"title": "Name", "text": "body", "shared": true}]}
+  ],
+  "merges": [
+    {"name": "private field stays in final output", "local": [{"title": "Quality", "text": "quality", "shared": false}, {"title": "Subject", "text": "old", "shared": true}, {"title": "Fixed", "text": "always", "shared": false}], "incoming": [{"title": "Subject changed", "text": "new"}], "output": "quality, new, always"},
+    {"name": "all private and empty editor", "local": [{"title": "Fixed", "text": "keep", "shared": false}], "incoming": [], "output": "keep"},
+    {"name": "delete shared block", "local": [{"title": "A", "text": "a", "shared": true}, {"title": "Fixed", "text": "keep", "shared": false}, {"title": "B", "text": "b", "shared": true}], "incoming": [{"title": "X", "text": "new"}], "output": "new, keep"},
+    {"name": "append shared block", "local": [{"title": "A", "text": "a", "shared": true}, {"title": "Fixed", "text": "keep", "shared": false}], "incoming": [{"title": "X", "text": "new"}, {"title": "Y", "text": "extra"}], "output": "new, keep, extra"}
+  ]
+}

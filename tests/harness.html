@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Node Perfector · Native ComfyUI widget tests</title>
+<link rel="stylesheet" href="/node_modules/@comfyorg/litegraph/dist/css/litegraph.css">
+<style>
+html, body { margin: 0; overflow: hidden; background: #1e1e1e; }
+#scene { position: relative; width: 1450px; height: 1280px; }
+#graph { position: absolute; inset: 0; }
+/* Test substitute for the standard ComfyUI textarea host. Runtime uses ComfyWidgets. */
+.comfy-multiline-input { position: absolute; box-sizing: border-box; resize: none;
+    background: #222; color: #ddd; border: 1px solid #555; border-radius: 0;
+    padding: 8px; font: 12px/1.45 monospace; outline: none; }
+</style>
+<div id="scene"><canvas id="graph" width="1450" height="1280"></canvas></div>
+<script type="module" src="/tests/harness.js"></script>
+</html>
