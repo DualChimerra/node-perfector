@@ -9,19 +9,20 @@ from prompt_core import default_state, format_document
 
 state = default_state()
 state["sections"] = [
-    {"title": "Quality", "text": "masterpiece, best quality, detailed", "shared": False},
-    {"title": "Subject", "text": "a quiet forest path, morning mist", "shared": True},
-    {"title": "Lighting & mood", "text": "soft golden light, peaceful atmosphere", "shared": True},
+    {"id": "quality", "title": "Quality", "text": "masterpiece, best quality, detailed", "shared": False, "height": 100, "color": "#6e91b8"},
+    {"id": "subject", "title": "Subject", "text": "a quiet forest path, morning mist", "shared": True, "height": 100, "color": "#b29a69"},
+    {"id": "lighting", "title": "Lighting & mood", "text": "soft golden light, peaceful atmosphere", "shared": True, "height": 100, "color": "#8b71b5"},
 ]
-document = {"version": 1, "document": format_document([section for section in state["sections"] if section["shared"]])}
+document = {"version": 1, "format": "multiline", "document_height": 440,
+    "document": format_document([section for section in state["sections"] if section["shared"]])}
 workflow = {
     "last_node_id": 3,
     "last_link_id": 2,
     "nodes": [
-        {"id": 1, "type": "PerfectorPromptClay", "pos": [50, 80], "size": [460, 755], "flags": {}, "order": 0, "mode": 0,
+        {"id": 1, "type": "PerfectorPromptClay", "pos": [50, 80], "size": [460, 560], "flags": {}, "order": 0, "mode": 0,
          "inputs": [], "outputs": [{"name": "sections", "type": "PERFECTOR_PROMPT_SECTIONS", "links": [1], "slot_index": 0}],
          "properties": {"Node name for S&R": "PerfectorPromptClay"}, "widgets_values": [json.dumps(document, ensure_ascii=False)]},
-        {"id": 2, "type": "PerfectorPromptSeparator", "pos": [600, 80], "size": [460, 1065], "flags": {}, "order": 1, "mode": 0,
+        {"id": 2, "type": "PerfectorPromptSeparator", "pos": [600, 80], "size": [460, 780], "flags": {}, "order": 1, "mode": 0,
          "inputs": [{"name": "sections", "type": "PERFECTOR_PROMPT_SECTIONS", "link": 1}],
          "outputs": [{"name": "text", "type": "STRING", "links": [2], "slot_index": 0}],
          "properties": {"Node name for S&R": "PerfectorPromptSeparator"}, "widgets_values": [json.dumps(state, ensure_ascii=False)]},

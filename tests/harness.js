@@ -1,5 +1,6 @@
 import { LiteGraph, LGraph, LGraphNode, LGraphCanvas } from "/node_modules/@comfyorg/litegraph/dist/litegraph.es.js";
 import { app } from "/scripts/app.js";
+import { addDOMWidget } from "/tests/harness_widgets.js";
 import "/web/prompts.js";
 
 globalThis.LiteGraph = LiteGraph;
@@ -11,6 +12,7 @@ app.canvas.ds.scale = 1;
 app.canvas.ds.offset = [0, 0];
 const definitions = await (await fetch("/object_info")).json();
 const extension = app.extensions[0];
+extension.setup?.();
 
 for (const [type, definition] of Object.entries(definitions)) {
     class ComfyNode extends LGraphNode {
@@ -24,6 +26,7 @@ for (const [type, definition] of Object.entries(definitions)) {
         }
         onNodeCreated() { extension.nodeCreated(this); }
         onRemoved() { for (const widget of this.widgets) widget.onRemove?.(); }
+        addDOMWidget(name, type, element, options) { return addDOMWidget(this, name, type, element, options, app); }
     }
     ComfyNode.title = definition.display_name;
     LiteGraph.registerNodeType(type, ComfyNode);
@@ -48,7 +51,17 @@ globalThis.harness = {
     widget(name, node = this.separator) { return node.widgets.find(widget => widget.name === name); },
     set(name, value, node = this.separator) {
         const widget = this.widget(name, node);
-        if (!widget) throw new Error("Widget not found: " + name);
+        if (!widget) {
+            const field = /^(\d+) · (title|share with Prompt Clay)$/.exec(name);
+            if (!field) throw new Error("Widget not found: " + name);
+            const controls = this.widget("header_" + Number(field[1]), node).controls;
+            const input = field[2] === "title" ? controls.title : controls.shared;
+            if (field[2] === "title") input.value = value;
+            else input.checked = value;
+            input.dispatchEvent(new Event(field[2] === "title" ? "input" : "change"));
+            app.canvas.draw(true, true);
+            return;
+        }
         widget.value = value;
         widget.callback?.(value, app.canvas, node, undefined, {});
         app.canvas.draw(true, true);

@@ -9,7 +9,7 @@ const root = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
 const schemas = spawnSync(process.env.PYTHON ?? (process.platform === "win32" ? "py" : "python3"),
     [path.join(root, "tests", "export_definitions.py")], { encoding: "utf8" });
 if (schemas.status !== 0) throw new Error(schemas.stderr);
-const contentTypes = { ".js": "text/javascript", ".mjs": "text/javascript", ".json": "application/json", ".css": "text/css", ".html": "text/html" };
+const contentTypes = { ".js": "text/javascript", ".mjs": "text/javascript", ".json": "application/json", ".css": "text/css", ".html": "text/html", ".svg": "image/svg+xml" };
 http.createServer(async (request, response) => {
     try {
         let route = new URL(request.url, "http://localhost").pathname;

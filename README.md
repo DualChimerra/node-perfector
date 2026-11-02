@@ -43,6 +43,12 @@ soft golden light, peaceful atmosphere
 
 - Group names keep the subject, style, lighting, and other details easy to distinguish.
 - Each `## Heading` starts a group; the text below it is that group's content.
+- Switch **format** to **Single line** for a compact, editable document:
+
+  ```text
+  ## Specie: anthro, furry fox, fox ears, fox mouth. ## Details of character: black fur, red eyes.
+  ```
+
 - Add, rename, reorder, or remove groups directly in the document.
 - Only fields selected in Prompt Separator appear here.
 - Copy the whole document with one button.
@@ -56,17 +62,21 @@ Prompt Clay is an editor, so it does not call an AI service itself. You choose w
 Set the number of fields at the top, give them optional titles, and edit each piece independently. Choose a separator below the fields and see the exact assembled text in the live preview.
 
 - **1–64 fields**, each with its own title and multiline text.
-- A switch beside each field chooses whether its title and text appear in Prompt Clay.
+- A compact header puts the field number, editable title, unlabeled sharing switch, and drag handle on one row.
+- The sharing switch chooses whether that field's title and text appear in Prompt Clay.
+- Drag the handle to reorder whole blocks, or focus it and use **Alt+Arrow Up/Down**.
+- Click the field number to choose a block color. Right-click the number to reset it.
+- Drag the lower edge of any text editor or the final preview to change its height independently.
+- Colors, order, and individual heights are saved in the workflow and survive edits and reloads.
 - Live synchronization in both directions for shared fields.
 - A custom separator: a comma, space, line break, or any other text.
-- Optional titles in the final prompt; off by default.
 - The final preview has a divider and a **read only** heading to distinguish it from editable fields.
 - Empty fields are skipped when joining text.
-- Reducing the field count temporarily stores the removed fields; increasing it brings them back.
+- Reducing the field count keeps hidden fields, including text, titles, switches, colors, and heights. Increasing the count brings them back until you overwrite their content.
 - **Create Prompt Clay** makes and connects a matching editor from the selected fields.
 - The `text` output is a standard ComfyUI `STRING`.
 
-Both nodes use native ComfyUI widgets and the standard `ComfyWidgets.STRING` multiline editor. A small canvas divider labels the final preview using LiteGraph's theme colors. There is no separate HTML panel, custom stylesheet, or replacement node theme.
+Both nodes use ComfyUI's standard `ComfyWidgets.STRING` editors. Compact header rows use the official DOM-widget API and ComfyUI theme colors; the preview keeps its separate divider. There is no replacement node theme or standalone panel, and no extra status footer.
 
 ### One switch, one clear purpose
 
@@ -139,7 +149,8 @@ You can also open [`examples/prompt-editing.json`](examples/prompt-editing.json)
 - Type `\n` for a line break or `\t` for a tab in the separator. Use `\\` for a literal backslash. Unicode separators work too.
 - A body line that should literally start with `## ` can be escaped as `\## `. A literal leading backslash can be escaped as `\\`. These escapes are handled automatically when sending fields to Clay.
 - The combined number of shared and excluded fields cannot exceed 64. An oversized document shows an error instead of silently truncating content.
-- Titles are organizational by default. They enter the final prompt only when **include_titles_in_prompt** is enabled.
+- Titles are organizational and never enter the final CLIP prompt. The old `include_titles_in_prompt` control has been removed; older saved settings are ignored.
+- Single-line documents use `## Title: text` groups separated by spaces. Switching formats preserves the text; embedded line breaks and literal `##` markers are escaped automatically.
 - Text is passed through without expanding wildcards or random-choice syntax.
 
 ## Local by default
@@ -185,9 +196,9 @@ npm test
 python scripts/build_release.py
 ```
 
-On Windows, use `py` instead of `python` if needed. The browser suite uses the real LiteGraph canvas, native controls, graph, links, node loading, and workflow serialization, with a small substitute for ComfyUI's multiline-textarea host. It covers editing, native toggle clicks, preservation of excluded fields, errors, count restoration, save/reload, and late execution results. It does not run an image model or replace a final check in your own ComfyUI version.
+On Windows, use `py` instead of `python` if needed. The browser suite uses the real LiteGraph canvas, graph, links, native controls, and workflow serialization, with a small substitute for ComfyUI's DOM host. It covers compact headers, dragging, per-field resizing and colors, both document formats, excluded fields, count restoration, save/reload, and late execution results.
 
-The optional `tests/comfy.spec.js` suite checks real ComfyUI widget callbacks, workflow export/reload, and backend text execution. Set `COMFYUI_TEST_URL` to an isolated test server and run `npm run test:browser -- tests/comfy.spec.js`. Use a temporary ComfyUI user directory: these tests replace the open test workflow. Version 1.0.1 was checked with ComfyUI 0.43.2 and frontend versions 1.45.21 and 1.57.4; these checks require no model weights.
+The optional `tests/comfy.spec.js` suite checks real ComfyUI widgets, resizing, reordering, colors, inline documents, workflow export/reload, and backend text execution. Set `COMFYUI_TEST_URL` to an isolated test server and run `npm run test:browser -- tests/comfy.spec.js`. Use a temporary ComfyUI user directory: these tests replace the open test workflow. Version 1.1.0 was checked with ComfyUI 0.43.2 and frontend versions 1.45.21 and 1.57.4; these checks require no model weights.
 
 ## Publish your own repository
 
@@ -216,6 +227,8 @@ The included `.gitignore` excludes local dependencies, test output, caches, rele
 ## License
 
 [MIT](LICENSE)
+
+The bundled drag icon is from [Material Design Icons / Pictogrammers](https://github.com/Templarian/MaterialDesign) under [Apache 2.0](web/icons/LICENSE.md).
 
 ---
 

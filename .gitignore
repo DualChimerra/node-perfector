@@ -19,3 +19,4 @@ secrets*.json
 Thumbs.db
 .idea/
 .vscode/
+/design-qa.md

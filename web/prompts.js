@@ -1,7 +1,7 @@
 import { app } from "../../scripts/app.js";
 import { ComfyWidgets } from "../../scripts/widgets.js";
 import { defaultState, readState, parseDocument, formatDocument, joinSections,
-    resizeSections, mergeSharedSections, MAX_SECTIONS } from "./prompt_model.js";
+    resizeSections, mergeSharedSections, prepareSection, moveSection, MAX_SECTIONS } from "./prompt_model.js";
 
 const SEPARATOR = "PerfectorPromptSeparator";
 const CLAY = "PerfectorPromptClay";
@@ -51,10 +51,9 @@ class PromptController {
         this.kind = kind;
         this.storage = node.widgets.find(widget => widget.name === "state");
         this.state = kind === "separator" ? defaultState()
-            : { version: 1, document: formatDocument(defaultState().sections) };
+            : { version: 1, document: formatDocument(defaultState().sections), format: "multiline", document_height: 440 };
         this.fields = [];
-        // Native ComfyUI widgets throughout: number, toggle, text, button,
-        // and the standard multiline STRING widget supplied by ComfyWidgets.
+        this.originalBoxColor = node.boxcolor;
         this.storage.hidden = true;
         this.storage.type = "hidden";
         this.storage.computeSize = () => [0, -4];
@@ -68,9 +67,6 @@ class PromptController {
 
         if (kind === "separator") this.createSeparator();
         else this.createClay();
-        this.status = this.add("button", "status", "", () => {});
-        this.status.disabled = true;
-        this.status.options.readOnly = true;
 
         const previousConfigure = node.onConfigure;
         node.onConfigure = (...args) => {
@@ -106,7 +102,7 @@ class PromptController {
             return previousRemoved?.apply(node, args);
         };
         this.load();
-        this.fit();
+        this.fit(false);
     }
 
     add(type, name, value, callback, options = {}) {
@@ -116,8 +112,12 @@ class PromptController {
     multiline(name, value, callback, height, readOnly = false) {
         const widget = transient(ComfyWidgets.STRING(this.node, name,
             ["STRING", { default: value, multiline: true, dynamicPrompts: false }], app).widget);
-        widget.options.getMinHeight = () => height;
-        widget.computeSize = width => [width, height];
+        const getHeight = typeof height === "function" ? height : () => height;
+        widget.options.getMinHeight = getHeight;
+        widget.options.getMaxHeight = getHeight;
+        widget.options.getHeight = getHeight;
+        widget.options.readOnly = readOnly;
+        widget.computeSize = width => [width, getHeight()];
         const input = textarea(widget);
         const events = new AbortController();
         let disposed = false;
@@ -146,6 +146,131 @@ class PromptController {
         return widget;
     }
 
+    resizable(widget, getHeight, setHeight) {
+        const input = textarea(widget);
+        if (!input) return;
+        input.style.resize = "vertical";
+        const events = new AbortController();
+        let drag = null;
+        const finish = () => {
+            if (!drag) return;
+            drag = null;
+            this.save();
+            this.node.graph?.afterChange?.(this.node);
+        };
+        input.addEventListener("pointerdown", event => {
+            const rect = input.getBoundingClientRect();
+            if (event.button !== 0 || event.clientY < rect.bottom - 9) return;
+            event.preventDefault(); event.stopImmediatePropagation();
+            this.node.graph?.beforeChange?.(this.node);
+            drag = { y: event.clientY, height: getHeight(), scale: app.canvas?.ds?.scale || 1 };
+            input.setPointerCapture(event.pointerId);
+        }, { capture: true, signal: events.signal });
+        input.addEventListener("pointermove", event => {
+            if (!drag) {
+                input.style.cursor = event.clientY >= input.getBoundingClientRect().bottom - 9 ? "ns-resize" : "text";
+                return;
+            }
+            event.preventDefault(); event.stopPropagation();
+            const height = Math.max(60, Math.round(drag.height + (event.clientY - drag.y) / drag.scale));
+            const difference = height - getHeight();
+            setHeight(height);
+            this.node.setSize([this.node.size[0], this.node.size[1] + difference]);
+            this.save();
+        }, { signal: events.signal });
+        input.addEventListener("pointerup", finish, { signal: events.signal });
+        input.addEventListener("pointercancel", finish, { signal: events.signal });
+        input.addEventListener("lostpointercapture", finish, { signal: events.signal });
+        const remove = widget.onRemove;
+        widget.onRemove = function (...args) { finish(); events.abort(); return remove?.apply(this, args); };
+    }
+
+    sectionHeader(index) {
+        const section = () => this.state.sections[index];
+        const root = document.createElement("div");
+        root.className = "perfector-section-header";
+        root.dataset.sectionId = section().id;
+        const events = new AbortController();
+        const listen = (el, type, callback) => el.addEventListener(type, callback, { signal: events.signal });
+        const number = document.createElement("label");
+        number.className = "pf-number";
+        number.append(document.createTextNode(String(index + 1).padStart(2, "0")));
+        number.title = "Choose block color · Right-click to reset";
+        const color = document.createElement("input");
+        color.type = "color";
+        color.setAttribute("aria-label", `Color for input ${index + 1}`);
+        number.append(color);
+        const title = document.createElement("input");
+        title.type = "text";
+        title.className = "pf-title";
+        title.placeholder = "Title";
+        title.setAttribute("aria-label", `title_${index + 1}`);
+        const shared = document.createElement("input");
+        shared.type = "checkbox";
+        shared.className = "pf-share";
+        shared.setAttribute("role", "switch");
+        shared.setAttribute("aria-label", `Share input ${index + 1} with Prompt Clay`);
+        shared.title = "Include this group in Prompt Clay. The final prompt always keeps its text.";
+        const handle = document.createElement("button");
+        handle.type = "button";
+        handle.className = "pf-drag";
+        handle.draggable = true;
+        handle.setAttribute("aria-label", `Move input ${index + 1}`);
+        handle.title = "Drag to reorder · Alt+Arrow Up/Down";
+        const icon = document.createElement("img");
+        icon.src = new URL("./icons/drag-vertical.svg", import.meta.url).href;
+        icon.alt = ""; icon.draggable = false;
+        handle.append(icon);
+        root.append(number, title, shared, handle);
+        listen(title, "input", () => this.change(() => { section().title = title.value; }, true));
+        listen(shared, "change", () => this.change(() => { section().shared = shared.checked; }, true));
+        listen(color, "input", () => this.change(() => { section().color = color.value; }));
+        listen(number, "contextmenu", event => {
+            event.preventDefault(); event.stopPropagation();
+            this.change(() => { section().color = null; });
+        });
+        for (const name of ["pointerdown", "mousedown", "keydown", "dblclick"]) listen(root, name, event => event.stopPropagation());
+        listen(handle, "dragstart", event => {
+            this.draggingSection = section().id;
+            event.dataTransfer.setData("text/plain", section().id);
+            event.dataTransfer.effectAllowed = "move";
+            event.stopPropagation();
+        });
+        listen(root, "dragover", event => {
+            if (!this.draggingSection) return;
+            event.preventDefault(); event.stopPropagation(); root.classList.add("pf-drop");
+            event.dataTransfer.dropEffect = "move";
+        });
+        listen(root, "dragleave", () => root.classList.remove("pf-drop"));
+        listen(root, "drop", event => {
+            if (!this.draggingSection) return;
+            event.preventDefault(); event.stopPropagation();
+            const from = this.state.sections.findIndex(item => item.id === this.draggingSection);
+            this.draggingSection = null;
+            this.change(() => moveSection(this.state, from, index), true);
+        });
+        listen(handle, "dragend", () => {
+            this.draggingSection = null;
+            for (const field of this.fields) field.header.element.classList.remove("pf-drop");
+        });
+        listen(handle, "keydown", event => {
+            if (!event.altKey || !["ArrowUp", "ArrowDown"].includes(event.key)) return;
+            event.preventDefault();
+            const to = Math.max(0, Math.min(this.fields.length - 1, index + (event.key === "ArrowUp" ? -1 : 1)));
+            this.change(() => moveSection(this.state, index, to), true);
+            this.fields[to].header.element.querySelector("button").focus();
+        });
+        const widget = transient(this.node.addDOMWidget(`header_${index + 1}`, "PERFECTOR_SECTION_HEADER", root, {
+            serialize: false, hideOnZoom: true, getValue: () => "", setValue: () => {},
+            getMinHeight: () => 50, getMaxHeight: () => 50, getHeight: () => 50,
+        }));
+        widget.computeSize = width => [width, 50];
+        const remove = widget.onRemove;
+        widget.onRemove = function (...args) { events.abort(); return remove?.apply(this, args); };
+        widget.controls = { title, shared, color, number };
+        return widget;
+    }
+
     previewDivider() {
         // A small canvas widget, using LiteGraph's theme; no HTML or stylesheet.
         return transient(this.node.addCustomWidget({
@@ -166,74 +291,75 @@ class PromptController {
 
     createSeparator() {
         this.count = this.add("number", "input_count", this.state.sections.length,
-            value => this.change(() => resizeSections(this.state, value), true),
+            value => this.change(() => { resizeSections(this.state, value); this.fitAfterRender = true; }, true),
             { min: 1, max: MAX_SECTIONS, step: 10, precision: 0 });
         this.separator = this.add("text", "separator", ", ",
             value => this.change(() => { this.state.separator = value; }));
-        this.includeTitles = this.add("toggle", "include_titles_in_prompt", false,
-            value => this.change(() => { this.state.include_titles = value; }));
         this.previewDivider();
-        this.preview = this.multiline("final_prompt", "", null, 140, true);
+        this.preview = this.multiline("final_prompt", "", null, () => this.state.preview_height, true);
+        this.resizable(this.preview, () => this.state.preview_height, height => { this.state.preview_height = height; });
         this.createButton = this.add("button", "Create Prompt Clay", null, () => this.createClayNode());
-        this.add("button", "Copy final prompt", null, () => this.copy(this.preview.value));
     }
 
     createClay() {
+        this.format = this.add("combo", "format", "Multiline", value => this.change(() => {
+            const sections = parseDocument(this.state.document, this.state.format);
+            this.state.format = value === "Single line" ? "single_line" : "multiline";
+            this.state.document = formatDocument(sections, this.state.format);
+        }), { values: ["Multiline", "Single line"] });
         this.document = this.multiline("prompt_document", this.state.document,
             value => {
                 if (value !== this.state.document) this.change(() => { this.state.document = value; });
-            }, 440);
+            }, () => this.state.document_height);
+        this.resizable(this.document, () => this.state.document_height, height => { this.state.document_height = height; });
         this.add("button", "Copy document", null, () => this.copy(this.state.document));
     }
 
     createFields() {
         for (const field of this.fields) {
-            for (const widget of Object.values(field)) {
+            for (const widget of [field.header, field.text]) {
                 if (this.node.removeWidget) this.node.removeWidget(widget);
                 else {
                     const index = this.node.widgets.indexOf(widget);
                     if (index >= 0) this.node.widgets.splice(index, 1);
                 }
                 widget.onRemove?.();
-                textarea(widget)?.remove();
+                (widget.element ?? textarea(widget))?.remove();
             }
         }
         this.fields = this.state.sections.map((section, index) => {
-            const number = String(index + 1).padStart(2, "0");
-            const shared = this.add("toggle", `${number} · share with Prompt Clay`, section.shared,
-                value => this.change(() => { this.state.sections[index].shared = value; }, true),
-                { on: "shared", off: "local" });
-            const title = this.add("text", `${number} · title`, section.title,
-                value => this.change(() => { this.state.sections[index].title = value; }, true));
+            const header = this.sectionHeader(index);
             const text = this.multiline(`text_${index + 1}`, section.text,
                 value => {
                     if (value !== this.state.sections[index]?.text) {
                         this.change(() => { this.state.sections[index].text = value; }, true);
                     }
-                }, 100);
-            return { shared, title, text };
+                }, () => this.state.sections[index]?.height ?? 100);
+            this.resizable(text, () => this.state.sections[index].height, height => { this.state.sections[index].height = height; });
+            return { id: section.id, header, text };
         });
         // Place dynamic native widgets immediately after input_count.
-        const dynamic = this.fields.flatMap(field => Object.values(field));
+        const dynamic = this.fields.flatMap(field => [field.header, field.text]);
         const set = new Set(dynamic);
         const remaining = this.node.widgets.filter(widget => !set.has(widget));
         const at = remaining.indexOf(this.count) + 1;
         this.node.widgets.splice(0, this.node.widgets.length,
             ...remaining.slice(0, at), ...dynamic, ...remaining.slice(at));
-        this.fit();
+        this.fit(false);
     }
 
-    fit() {
+    fit(shrink = false) {
         const minimum = this.node.computeSize();
-        const preferred = this.kind === "clay" ? 560 : this.state.sections.length * 155 + 330;
-        this.node.setSize([Math.max(420, this.node.size[0], minimum[0]), Math.max(minimum[1], preferred)]);
+        this.node.setSize([Math.max(420, this.node.size[0], minimum[0]),
+            Math.max(minimum[1], shrink ? 0 : this.node.size[1])]);
         this.node.setDirtyCanvas?.(true, true);
     }
 
     message(text, error = false) {
-        this.status.value = error ? "Error: " + text : text;
-        this.status.label = this.status.value.length > 58 ? this.status.value.slice(0, 55) + "…" : this.status.value;
-        this.status.options.tooltip = this.status.value;
+        this.node.perfectorError = error ? text : null;
+        this.node.boxcolor = error ? "#b44" : this.originalBoxColor;
+        const input = this.kind === "clay" ? textarea(this.document) : textarea(this.preview);
+        if (input) input.title = error ? text : "";
         this.node.setDirtyCanvas?.(true, true);
     }
 
@@ -243,6 +369,7 @@ class PromptController {
             this.error = null;
             this.sourceError = null;
             this.render();
+            this.save();
         } catch (error) {
             this.error = error;
             this.message(error.message, true);
@@ -269,7 +396,12 @@ class PromptController {
         } catch (error) {
             this.error = error;
             this.message(error.message, true);
-            if (this.kind === "clay") broadcast(this);
+            if (this.kind === "clay") {
+                this.rendering = true;
+                this.format.value = this.state.format === "single_line" ? "Single line" : "Multiline";
+                this.rendering = false;
+                broadcast(this);
+            }
         } finally { graph?.afterChange?.(this.node); }
     }
 
@@ -278,32 +410,44 @@ class PromptController {
         try {
             if (this.kind === "clay") {
                 if (this.document.value !== this.state.document) this.document.value = this.state.document;
-                this.message(`${parseDocument(this.state.document).length} groups · sections → Prompt Separator`);
+                this.format.value = this.state.format === "single_line" ? "Single line" : "Multiline";
+                parseDocument(this.state.document, this.state.format);
+                this.message("");
                 return;
             }
-            if (this.fields.length !== this.state.sections.length) this.createFields();
+            if (this.fields.length !== this.state.sections.length || this.fields.some((field, index) => field.id !== this.state.sections[index].id)) this.createFields();
             this.state.sections.forEach((section, index) => {
                 const field = this.fields[index];
-                field.shared.value = section.shared;
-                field.title.value = section.title;
+                const controls = field.header.controls;
+                controls.shared.checked = section.shared;
+                if (controls.title.value !== section.title) controls.title.value = section.title;
+                controls.color.value = section.color ?? "#777777";
+                controls.number.style.backgroundColor = section.color ?? "";
+                if (section.color) {
+                    const rgb = section.color.slice(1).match(/../g).map(value => parseInt(value, 16));
+                    controls.number.style.color = rgb[0] * .299 + rgb[1] * .587 + rgb[2] * .114 > 155 ? "#171717" : "#f4f4f4";
+                } else controls.number.style.color = "";
+                field.header.element.style.borderLeftColor = section.color ?? "transparent";
+                const input = textarea(field.text);
+                if (input) {
+                    input.style.borderLeft = section.color ? `3px solid ${section.color}` : "";
+                    input.style.backgroundColor = section.color ? `color-mix(in srgb, ${section.color} 10%, var(--comfy-input-bg, #222))` : "";
+                }
                 if (field.text.value !== section.text) field.text.value = section.text;
             });
             this.count.value = this.state.sections.length;
             this.separator.value = this.state.separator;
-            this.includeTitles.value = this.state.include_titles;
-            this.preview.value = joinSections(this.state.sections, this.state.separator, this.state.include_titles);
+            this.preview.value = joinSections(this.state.sections, this.state.separator);
             const source = findSource(this.node);
             this.createButton.disabled = source.linked;
-            const count = this.state.sections.filter(section => section.shared).length;
             const error = source.controller?.error ?? this.sourceError;
             if (error) {
                 this.preview.value = "";
                 this.message(error.message, true);
             } else {
-                this.message(source.controller ? `Synced · ${count} shared · All fields → final prompt`
-                    : source.linked ? "Source preview updates after execution"
-                        : `${count} shared · All fields → final prompt`);
+                this.message("");
             }
+            if (this.fitAfterRender) { this.fitAfterRender = false; this.fit(true); }
         } finally { this.rendering = false; }
     }
 
@@ -311,7 +455,7 @@ class PromptController {
         const source = findSource(this.node).controller;
         if (!source) return;
         if (source.error) throw new Error("Fix the invalid Prompt Clay document before updating its groups.");
-        source.state.document = formatDocument(this.state.sections.filter(section => section.shared));
+        source.state.document = formatDocument(this.state.sections.filter(section => section.shared), source.state.format);
         source.error = null;
         this.sourceError = null;
         source.save(); source.render(); this.render();
@@ -325,7 +469,10 @@ class PromptController {
         if (!source) { this.render(); return; }
         try {
             if (source.error) throw source.error;
-            this.state.sections = mergeSharedSections(this.state.sections, parseDocument(source.state.document));
+            const previousCount = this.state.sections.length;
+            this.state.sections = mergeSharedSections(this.state.sections, parseDocument(source.state.document, source.state.format)).map(prepareSection);
+            if (this.state.sections.length > previousCount) this.state.parked.splice(0, this.state.sections.length - previousCount);
+            if (this.state.sections.length !== previousCount) this.fitAfterRender = true;
             this.save(); this.render();
         } catch (error) {
             this.sourceError = error;
@@ -364,6 +511,14 @@ class PromptController {
 
 app.registerExtension({
     name: "NodePerfector.Prompts",
+    setup() {
+        if (document.getElementById("perfector-prompt-controls")) return;
+        const style = document.createElement("link");
+        style.id = "perfector-prompt-controls";
+        style.rel = "stylesheet";
+        style.href = new URL("./prompt_controls.css", import.meta.url).href;
+        document.head.append(style);
+    },
     nodeCreated(node) {
         const type = node.comfyClass ?? node.constructor.comfyClass ?? node.type;
         if (type !== SEPARATOR && type !== CLAY) return;

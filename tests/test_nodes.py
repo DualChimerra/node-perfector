@@ -22,6 +22,21 @@ class TextRulesTests(unittest.TestCase):
                 self.assertEqual(core.parse_document(fixture["document"]), fixture["expected"])
                 self.assertEqual(core.parse_document(core.format_document(fixture["expected"])), fixture["expected"])
 
+    def test_inline_formats_match_browser_fixtures(self):
+        for fixture in FIXTURES["inline_documents"]:
+            with self.subTest(fixture["name"]):
+                self.assertEqual(core.parse_document(fixture["document"], "single_line"), fixture["expected"])
+                self.assertEqual(core.parse_document(core.format_document(fixture["expected"], "single_line"), "single_line"), fixture["expected"])
+                sections, = PromptClay().parse(json.dumps({"version": 1, "document": fixture["document"], "format": "single_line"}))
+                self.assertEqual(sections, fixture["expected"])
+
+    def test_clay_keeps_field_layout_and_legacy_titles_setting_is_ignored(self):
+        local = [{"id": "a", "title": "Old", "text": "old", "shared": True, "color": "#88aaff", "height": 250}]
+        state = {**core.default_state(), "sections": local, "include_titles": True}
+        result = PromptSeparator().build(json.dumps(state), [{"title": "New", "text": "new"}])
+        self.assertEqual(result["ui"]["sections"], [{**local[0], "title": "New", "text": "new"}])
+        self.assertEqual(result["result"], ("new",))
+
     def test_switches_do_not_filter_output(self):
         state = core.default_state()
         state["sections"] = [{"title": "Quality", "text": "always", "shared": False}, {"title": "Subject", "text": "forest", "shared": True}]
@@ -40,7 +55,7 @@ class TextRulesTests(unittest.TestCase):
 
     def test_delimiters_titles_and_blank_blocks(self):
         sections = [{"title": "Quality", "text": " a "}, {"title": "Empty", "text": " \n "}, {"title": "", "text": "b"}]
-        self.assertEqual(core.join_sections(sections, "\\n", True), "Quality: a\nb")
+        self.assertEqual(core.join_sections(sections, "\\n"), "a\nb")
         self.assertEqual(core.join_sections(sections, ""), "ab")
         self.assertEqual(core.decode_separator(r"\\n"), r"\n")
         self.assertEqual(core.decode_separator(" → "), " → ")

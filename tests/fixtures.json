@@ -7,6 +7,11 @@
     {"name": "escaped headings", "document": "## A\n\\## literal\n\\\\path\n\nparagraph\n## B\nlast", "expected": [{"title": "A", "text": "## literal\n\\path\n\nparagraph", "shared": true}, {"title": "B", "text": "last", "shared": true}]},
     {"name": "preamble and CRLF", "document": "intro\r\n\r\n##\tName\r\nbody\r\n", "expected": [{"title": "", "text": "intro", "shared": true}, {"title": "Name", "text": "body", "shared": true}]}
   ],
+  "inline_documents": [
+    {"name": "requested inline form", "document": "## Specie: anthro, furry fox, fox ears, fox mouth. ## Details of character: black fur, red eyes.", "expected": [{"title": "Specie", "text": "anthro, furry fox, fox ears, fox mouth.", "shared": true}, {"title": "Details of character", "text": "black fur, red eyes.", "shared": true}]},
+    {"name": "inline escaped content", "document": "## Style\\: details: first\\nsecond \\## not a group C:\\\\path ## : untitled", "expected": [{"title": "Style: details", "text": "first\nsecond ## not a group C:\\path", "shared": true}, {"title": "", "text": "untitled", "shared": true}]},
+    {"name": "inline blank groups", "document": "## A:  ## B: ", "expected": [{"title": "A", "text": "", "shared": true}, {"title": "B", "text": "", "shared": true}]}
+  ],
   "merges": [
     {"name": "private field stays in final output", "local": [{"title": "Quality", "text": "quality", "shared": false}, {"title": "Subject", "text": "old", "shared": true}, {"title": "Fixed", "text": "always", "shared": false}], "incoming": [{"title": "Subject changed", "text": "new"}], "output": "quality, new, always"},
     {"name": "all private and empty editor", "local": [{"title": "Fixed", "text": "keep", "shared": false}], "incoming": [], "output": "keep"},

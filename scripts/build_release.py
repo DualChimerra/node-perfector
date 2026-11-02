@@ -10,7 +10,7 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 SKIP = {".git", "node_modules", "__pycache__", "test-results", "playwright-report", "dist", ".venv", ".idea", ".vscode"}
-TEXT_SUFFIXES = {".py", ".js", ".mjs", ".css", ".json", ".toml", ".md", ".yml", ".yaml", ".html", ""}
+TEXT_SUFFIXES = {".py", ".js", ".mjs", ".css", ".json", ".toml", ".md", ".yml", ".yaml", ".html", ".svg", ".txt", ""}
 PATTERNS = {
     "personal absolute path": re.compile(r"(?i)(?:[a-z]:[\\/](?:Users|Code)[\\/]|/(?:Users|home)/[a-z0-9_.-]+/)"),
     "GitHub token": re.compile(r"\b(?:gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,})\b"),

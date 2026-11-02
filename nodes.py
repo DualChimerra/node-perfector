@@ -22,13 +22,13 @@ class PromptSeparator:
     OUTPUT_TOOLTIPS = ("Final prompt → text input of CLIP Text Encode.",)
     FUNCTION = "build"
     CATEGORY = "Node Perfector/Prompt"
-    DESCRIPTION = "Edit named prompt fields independently, choose a separator, and preview the final prompt. Each share switch controls inclusion in Prompt Clay only; all non-empty fields remain in the final output."
+    DESCRIPTION = "Edit, color, resize, and reorder named prompt fields. Share switches control inclusion in Prompt Clay only; all non-empty fields remain in the final prompt. Click a field number to choose its color."
     SEARCH_ALIASES = ["prompt builder", "join text", "промпт", "текстовые поля"]
 
     def build(self, state, sections=None):
         settings = builder_state(state)
         source = settings["sections"] if sections is None else merge_shared_sections(settings["sections"], sections)
-        text = join_sections(source, settings["separator"], settings["include_titles"])
+        text = join_sections(source, settings["separator"])
         return {"ui": {"text": [text], "sections": source}, "result": (text,)}
 
 
@@ -42,12 +42,12 @@ class PromptClay:
     OUTPUT_TOOLTIPS = ("Named groups → sections input of Prompt Separator.",)
     FUNCTION = "parse"
     CATEGORY = "Node Perfector/Prompt"
-    DESCRIPTION = "Shape prompts with AI using one document organized by ## Headings. Copy the selected groups to an AI assistant and paste its revision back; connected Prompt Separator fields update immediately."
+    DESCRIPTION = "Shape prompts with AI using a document organized by ## Headings or single-line ## Heading: text groups. Paste a revision back to update the connected Prompt Separator."
     SEARCH_ALIASES = ["prompt editor", "document", "общий редактор", "промпт"]
 
     def parse(self, state):
         value = read_json(state)
-        return (parse_document(value.get("document")),)
+        return (parse_document(value.get("document"), value.get("format", "multiline")),)
 
 
 NODE_CLASS_MAPPINGS = {
