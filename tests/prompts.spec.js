@@ -33,6 +33,27 @@ test("native widgets: preview, separators, titles and count restoration", async 
     await expect(body(page, 4)).toHaveValue("restored text");
 });
 
+test("widget-callback text edits survive renaming, switches and save/reload", async ({ page }) => {
+    // Vue editors and other ComfyUI integrations update the widget value and
+    // callback directly; they do not dispatch input on the legacy textarea.
+    await set(page, "text_1", "keep this prompt");
+    await set(page, titleName(0), "Renamed");
+    await expect(body(page, 0)).toHaveValue("keep this prompt");
+    await expect(preview(page)).toHaveValue("keep this prompt");
+    await set(page, shareName(0), false);
+    await expect(body(page, 0)).toHaveValue("keep this prompt");
+    await page.evaluate(() => harness.restore(harness.save()));
+    await expect(body(page, 0)).toHaveValue("keep this prompt");
+});
+
+test("Clay widget callbacks update shared fields without legacy DOM input", async ({ page }) => {
+    await create(page);
+    await page.evaluate(() => harness.set("prompt_document", "## Renamed\nkeep this prompt", harness.source()));
+    await expect(body(page, 0)).toHaveValue("keep this prompt");
+    await set(page, titleName(0), "Another title");
+    await expect(document(page)).toHaveValue("## Another title\nkeep this prompt");
+});
+
 test("switch excludes only from Clay; document edits keep excluded text", async ({ page }) => {
     await body(page, 0).fill("fixed quality tags"); await body(page, 1).fill("old subject");
     await set(page, shareName(0), false); await create(page);
@@ -88,6 +109,25 @@ test("invalid document clears stale preview, stays invalid on separator edit and
     await page.evaluate(() => harness.separator.disconnectInput(0));
     await document(page).fill("## A\nnot connected");
     await expect(preview(page)).toHaveValue("recovered");
+});
+
+test("local edits cannot overwrite an invalid Clay document", async ({ page }) => {
+    await body(page, 0).fill("original prompt"); await create(page);
+    const invalid = Array(65).fill("## A\nkeep my document").join("\n");
+    await document(page).fill(invalid);
+    await set(page, titleName(0), "Renamed locally");
+    await expect(document(page)).toHaveValue(invalid);
+    await expect(body(page, 0)).toHaveValue("original prompt");
+    await expect(preview(page)).toHaveValue("");
+});
+
+test("callbacks from removed text widgets cannot replace current fields", async ({ page }) => {
+    await body(page, 0).fill("current prompt");
+    await page.evaluate(() => { window.removedText = harness.widget("text_1"); });
+    await set(page, "input_count", 2);
+    await page.evaluate(() => { removedText.callback?.("stale text"); });
+    await expect(body(page, 0)).toHaveValue("current prompt");
+    await expect(preview(page)).toHaveValue("current prompt");
 });
 
 test("late execution cannot overwrite live edits", async ({ page }) => {

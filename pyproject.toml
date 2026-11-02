@@ -1,6 +1,6 @@
 [project]
 name = "node-perfector"
-version = "1.0.0"
+version = "1.0.1"
 description = "Node Perfector: Prompt Separator and Prompt Clay custom nodes for ComfyUI."
 requires-python = ">=3.10"
 license = {text = "MIT"}

@@ -61,14 +61,15 @@ def audit():
 
 
 def build():
-    files = [ROOT / name for name in ("README.md", "LICENSE", "pyproject.toml")]
+    files = [ROOT / name for name in ("README.md", "CHANGELOG.md", "LICENSE", "pyproject.toml")]
     files.extend(sorted(ROOT.glob("*.py")))
     for directory in ("web", "examples", "docs", "modules"):
         folder = ROOT / directory
         if folder.exists():
             files.extend(sorted(path for path in folder.rglob("*")
                 if path.is_file() and "__pycache__" not in path.parts and path.suffix != ".pyc"))
-    output = ROOT / "dist" / "node-perfector-1.0.0.zip"
+    version = re.search(r'^version\s*=\s*"([^"]+)"', (ROOT / "pyproject.toml").read_text(encoding="utf-8"), re.MULTILINE).group(1)
+    output = ROOT / "dist" / f"node-perfector-{version}.zip"
     output.parent.mkdir(exist_ok=True)
     with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as archive:
         for path in sorted(set(files)):

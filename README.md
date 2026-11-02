@@ -103,6 +103,8 @@ Works with a local ComfyUI installation, including Windows Portable and Desktop 
 
 Use the user-data `custom_nodes` directory for ComfyUI Desktop, rather than the application's bundled program files. This project has not been published to ComfyUI Manager yet.
 
+To update a Git installation, run `git pull` inside the `node-perfector` folder, restart ComfyUI, and refresh with **Ctrl+F5**. For ZIP installations, replace the plugin files with the latest archive. See the [changelog](CHANGELOG.md) for fixes.
+
 ## Workflow
 
 ```mermaid
@@ -184,6 +186,8 @@ python scripts/build_release.py
 ```
 
 On Windows, use `py` instead of `python` if needed. The browser suite uses the real LiteGraph canvas, native controls, graph, links, node loading, and workflow serialization, with a small substitute for ComfyUI's multiline-textarea host. It covers editing, native toggle clicks, preservation of excluded fields, errors, count restoration, save/reload, and late execution results. It does not run an image model or replace a final check in your own ComfyUI version.
+
+The optional `tests/comfy.spec.js` suite checks real ComfyUI widget callbacks, workflow export/reload, and backend text execution. Set `COMFYUI_TEST_URL` to an isolated test server and run `npm run test:browser -- tests/comfy.spec.js`. Use a temporary ComfyUI user directory: these tests replace the open test workflow. Version 1.0.1 was checked with ComfyUI 0.43.2 and frontend versions 1.45.21 and 1.57.4; these checks require no model weights.
 
 ## Publish your own repository
 

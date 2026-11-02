@@ -119,13 +119,29 @@ class PromptController {
         widget.options.getMinHeight = () => height;
         widget.computeSize = width => [width, height];
         const input = textarea(widget);
+        const events = new AbortController();
+        let disposed = false;
+        const accept = value => {
+            if (this.rendering || this.removed || disposed || !callback) return;
+            callback(typeof value === "string" ? value : widget.value);
+        };
+        const previousCallback = widget.callback;
+        widget.callback = function (value, ...args) {
+            previousCallback?.call(this, value, ...args);
+            accept(value);
+        };
+        const previousRemove = widget.onRemove;
+        widget.onRemove = function (...args) {
+            if (disposed) return;
+            disposed = true;
+            events.abort();
+            return previousRemove?.apply(this, args);
+        };
         if (input) {
             input.readOnly = readOnly;
             input.spellcheck = false;
             input.setAttribute("aria-label", name);
-            if (callback) input.addEventListener("input", () => {
-                if (!this.rendering) callback(input.value);
-            });
+            if (callback) input.addEventListener("input", () => accept(input.value), { signal: events.signal });
         }
         return widget;
     }
@@ -164,7 +180,9 @@ class PromptController {
 
     createClay() {
         this.document = this.multiline("prompt_document", this.state.document,
-            value => this.change(() => { this.state.document = value; }), 440);
+            value => {
+                if (value !== this.state.document) this.change(() => { this.state.document = value; });
+            }, 440);
         this.add("button", "Copy document", null, () => this.copy(this.state.document));
     }
 
@@ -188,7 +206,11 @@ class PromptController {
             const title = this.add("text", `${number} · title`, section.title,
                 value => this.change(() => { this.state.sections[index].title = value; }, true));
             const text = this.multiline(`text_${index + 1}`, section.text,
-                value => this.change(() => { this.state.sections[index].text = value; }, true), 100);
+                value => {
+                    if (value !== this.state.sections[index]?.text) {
+                        this.change(() => { this.state.sections[index].text = value; }, true);
+                    }
+                }, 100);
             return { shared, title, text };
         });
         // Place dynamic native widgets immediately after input_count.
@@ -288,6 +310,7 @@ class PromptController {
     publishFields() {
         const source = findSource(this.node).controller;
         if (!source) return;
+        if (source.error) throw new Error("Fix the invalid Prompt Clay document before updating its groups.");
         source.state.document = formatDocument(this.state.sections.filter(section => section.shared));
         source.error = null;
         this.sourceError = null;
